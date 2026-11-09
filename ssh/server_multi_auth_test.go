@@ -26,11 +26,19 @@ func doClientServerAuth(t *testing.T, serverConfig *ServerConfig, clientConfig *
 	serverConfig.AuthLogCallback = func(conn ConnMetadata, method string, err error) {
 		serverAuthErrors = append(serverAuthErrors, err)
 	}
-	go newServer(c1, serverConfig)
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		newServer(c1, serverConfig)
+	}()
 	c, _, _, err := NewClientConn(c2, "", clientConfig)
 	if err == nil {
 		c.Close()
 	}
+	// Wait for the server to finish before reading serverAuthErrors, which
+	// is written by the server goroutine.
+	c2.Close()
+	<-serverDone
 	return serverAuthErrors, err
 }
 
